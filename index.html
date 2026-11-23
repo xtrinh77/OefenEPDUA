@@ -437,14 +437,18 @@ const CASES=[
 /* ---------- Opslag ---------- */
 const KEY='oefen-epd-snomed-v1';
 const ECL='< 404684003 OR < 243796009';
+const BE='http://snomed.info/sct/11000172109';
 const PRESETS=[
+ {n:'FHIR · Belgische Ontoserver (FOD Volksgezondheid), Nederlands',type:'fhir',server:'https://apps.health.belgium.be/ontoserver/fhir',branch:BE,lang:'nl',tags:ECL},
+ {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands',type:'fhir',server:'https://tx.fhir.org/r4',branch:BE,lang:'nl',tags:ECL},
+ {n:'FHIR · Ontoserver CSIRO, Belgische editie, Nederlands',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:BE,lang:'nl',tags:ECL},
  {n:'FHIR · snomedbrowser.org (zoals de SNOMED-demo, Engels)',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'',lang:'',tags:ECL},
  {n:'FHIR · snomedbrowser.org, Belgische editie, Nederlands',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'http://snomed.info/sct/11000172109',lang:'nl',tags:ECL},
  {n:'FHIR · Ontoserver CSIRO (internationaal, Engels)',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:'',lang:'',tags:ECL},
  {n:'Snowstorm · SNOMED International browser, Belgische editie',type:'snowstorm',server:'https://browser.ihtsdotools.org/snowstorm/snomed-ct',branch:'MAIN/SNOMEDCT-BE',lang:'nl-X-31000172101,nl,en',tags:'disorder,finding,situation'}];
 const LABELS={fhir:['Editie (leeg = standaard van de server)','displayLanguage (bv. nl, leeg = Engels)','ECL-filter (welke concepten)'],
   snowstorm:['Branch','Accept-Language (taalrefset)','Semantische tags (komma-gescheiden)']};
-let S={casus:'c1',lists:{},cfg:{live:false,...PRESETS[1]},filter:'actief'};
+let S={casus:'c1',lists:{},cfg:{live:false,...PRESETS[0]},filter:'actief'};
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s){const cfg=s.cfg&&s.cfg.type?{...S.cfg,...s.cfg}:{...S.cfg,live:!!(s.cfg&&s.cfg.live)};S={...S,...s,cfg}}}catch(e){}
 delete S.cfg.n;
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
