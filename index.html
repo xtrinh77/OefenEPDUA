@@ -440,8 +440,9 @@ const ECL='< 404684003 OR < 243796009';
 const BE='http://snomed.info/sct/11000172109';
 const PRESETS=[
  {n:'FHIR · Belgische Ontoserver (FOD Volksgezondheid), Nederlands',type:'fhir',server:'https://apps.health.belgium.be/ontoserver/fhir',branch:BE,lang:'nl',tags:ECL},
- {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands',type:'fhir',server:'https://tx.fhir.org/r4',branch:BE,lang:'nl',tags:ECL},
- {n:'FHIR · Ontoserver CSIRO, Belgische editie, Nederlands',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:BE,lang:'nl',tags:ECL},
+ {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands',type:'fhir',server:'https://tx.fhir.org/r4',branch:BE,lang:'nl',tags:'isa/404684003'},
+ {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands (variant 2)',type:'fhir',server:'https://tx.fhir.org/r4',branch:'',lang:'nl',tags:'isa/404684003'},
+ {n:'FHIR · Ontoserver CSIRO, Engels + Nederlandse catalogustermen',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:'',lang:'',tags:ECL},
  {n:'FHIR · snomedbrowser.org (zoals de SNOMED-demo, Engels)',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'',lang:'',tags:ECL},
  {n:'FHIR · snomedbrowser.org, Belgische editie, Nederlands',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'http://snomed.info/sct/11000172109',lang:'nl',tags:ECL},
  {n:'FHIR · Ontoserver CSIRO (internationaal, Engels)',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:'',lang:'',tags:ECL},
@@ -484,9 +485,13 @@ async function httpErr(r){
   return new Error('HTTP '+r.status+(d?': '+d.slice(0,160):''));
 }
 async function fhirSearch(q){
-  const c=S.cfg;const base=(c.branch||'http://snomed.info/sct').trim();
-  const vs=base+'?fhir_vs=ecl/'+(c.tags||ECL);
-  const url=`${c.server.replace(/\/$/,'')}/ValueSet/$expand?url=${encodeURIComponent(vs)}&filter=${encodeURIComponent(q)}&count=25&includeDesignations=true${c.lang?'&displayLanguage='+encodeURIComponent(c.lang):''}`;
+  const c=S.cfg;const ed=(c.branch||'').trim();const f=(c.tags||ECL).trim();
+  /* "isa/…" of "refset/…": eenvoudige impliciete value set, editie via system-version (tx.fhir.org-stijl).
+     Anders: ECL, editie in de URL (Ontoserver-stijl). */
+  const simple=/^(isa|refset)\//.test(f);
+  const vs=simple?'http://snomed.info/sct?fhir_vs='+f:(ed||'http://snomed.info/sct')+'?fhir_vs=ecl/'+f;
+  const sv=simple&&ed?'&system-version='+encodeURIComponent('http://snomed.info/sct|'+ed):'';
+  const url=`${c.server.replace(/\/$/,'')}/ValueSet/$expand?url=${encodeURIComponent(vs)}${sv}&filter=${encodeURIComponent(q)}&count=25&includeDesignations=true${c.lang?'&displayLanguage='+encodeURIComponent(c.lang):''}`;
   const r=await fetch(url,{headers:{'Accept':'application/fhir+json'}});
   if(!r.ok)throw await httpErr(r);
   const j=await r.json();
@@ -494,6 +499,9 @@ async function fhirSearch(q){
     const ds=it.designation||[];
     const fsn=(ds.find(d=>d.use?.code==='900000000000003001'&&(!d.language||d.language.startsWith('en')))||ds.find(d=>d.use?.code==='900000000000003001'))?.value||'';
     const syns=[...new Set(ds.filter(d=>d.use?.code!=='900000000000003001'&&d.value!==it.display).map(d=>d.value))].slice(0,6);
+    const off=!c.lang&&BYID[it.code];
+    /* Engelstalige server: toon de Nederlandse term uit de catalogus als die er is */
+    if(off)return{id:it.code,nl:off.nl,fsn:fsn||off.fsn,tag:fsn?tagFromFsn(fsn):off.tag,syns:[it.display,...off.syns].filter((x,i,a)=>x&&a.indexOf(x)===i).slice(0,6),live:true,mixed:true};
     return{id:it.code,nl:it.display,fsn:fsn||it.display,tag:fsn?tagFromFsn(fsn):'concept',syns,live:true}});
 }
 async function liveSearch(q){
@@ -548,7 +556,7 @@ function showConcept(c){
   <dt>FSN</dt><dd>${esc(c.fsn)}</dd>
   <dt>Hiërarchie</dt><dd>${tagPill(c.tag)}</dd>
   ${c.syns&&c.syns.length?`<dt>Synoniemen</dt><dd>${esc(c.syns.join(', '))}</dd>`:''}
-  <dt>Bron</dt><dd>${c.live?'Live: '+esc(srcLabel()):'Offline catalogus (didactische term)'}</dd></dl>`;
+  <dt>Bron</dt><dd>${c.mixed?'Live: '+esc(srcLabel())+' · Nederlandse term uit de catalogus':c.live?'Live: '+esc(srcLabel()):'Offline catalogus (didactische term)'}</dd></dl>`;
 }
 function openForm(d,isEdit){
   draft=d;editUid=isEdit?d.uid:null;
@@ -561,7 +569,7 @@ function openForm(d,isEdit){
 }
 function pick(c){
   if(!c)return;
-  const concept={id:c.id,nl:c.nl,fsn:c.fsn,tag:c.tag,syns:c.syns||[],live:!!c.live};
+  const concept={id:c.id,nl:c.nl,fsn:c.fsn,tag:c.tag,syns:c.syns||[],live:!!c.live,mixed:!!c.mixed};
   openForm({concept,cat:c.tag==='bevinding'||c.tag==='situatie'?'probleem':'diagnose',status:'actief',ver:'bevestigd',onset:'',site:'',note:''},false);
   results=[];renderResults('');$('q').value='';
   $('save').focus();
@@ -687,7 +695,9 @@ $('cSave').addEventListener('click',()=>{S.cfg=readCfg();save();renderMode();$('
 $('cTest').addEventListener('click',async()=>{
   const keep=S.cfg;S.cfg=readCfg();$('cMsg').textContent='Verbinding testen…';
   try{const r=await liveSearch('diabetes');$('cMsg').textContent=`Gelukt: ${r.length} resultaten. Eerste: ${r[0]?r[0].nl+' ('+r[0].id+')':'–'}`}
-  catch(e){const m=e.message||'geblokkeerd';$('cMsg').textContent=/^HTTP/.test(m)
+  catch(e){const m=e.message||'geblokkeerd';$('cMsg').textContent=/^HTTP 40[13]/.test(m)
+    ?`De server is bereikbaar, maar vraagt een login (${m}). Daarvoor heb je een account bij de beheerder van de server nodig.`
+    :/^HTTP/.test(m)
     ?`De server antwoordt, maar met een fout (${m}). Vaak is de editie of de taal niet beschikbaar op deze server: probeer een andere voorinstelling.`
     :`Mislukt (${m}). De server is niet bereikbaar of laat geen aanvragen van dit domein toe (CORS). Op een gedeelde Claude-pagina is dat altijd zo. Probeer een andere voorinstelling.`}
   S.cfg=keep;
