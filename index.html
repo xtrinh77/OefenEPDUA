@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oefen-EPD probleemlijst</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: clinical, calm, precise — a hospital EPD screen built for a classroom.
+   IDEA: the problem-list tab of a patient record, with a patient banner on top.
+   PICTURE: the working tool itself — search left, live problem list right.
+   COLOUR and TYPE: white ground, ink, one deep teal; Inter in four sizes.
+   LAYOUT: app bar, full-width patient band, two columns that stack below 900px. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f4f6f6,#0d1416);--card:light-dark(#ffffff,#141d20);--ink:light-dark(#14161a,#e4eaea);
+--mute:light-dark(#5b6670,#93a1a6);--line:light-dark(#dde3e4,#26343a);--teal:light-dark(#0b5d63,#5cb9bf);
+--teal-ink:light-dark(#ffffff,#06201f);--soft:light-dark(#e6f1f1,#17302f);--amber:light-dark(#9a5b00,#e3a649);
+--amber-soft:light-dark(#fbf0dc,#33270f);--red:light-dark(#a3262a,#f08a8c);--red-soft:light-dark(#fbe5e5,#3a1a1b);
+--ok-soft:light-dark(#e3f2ef,#14302b)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;overflow-x:clip}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:10px max(3vw,16px);background:var(--card);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:17px;display:flex;align-items:center;gap:10px}
+.brand svg{flex:none}
+.bar .right{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.mode{font-size:13px;padding:4px 10px;border-radius:99px;background:var(--soft);color:var(--teal);font-weight:600;white-space:nowrap}
+.mode.live{background:var(--teal);color:var(--teal-ink)}
+select,input[type=text],input[type=date],input[type=search],textarea{min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:16px}
+textarea{min-height:70px;resize:vertical;width:100%}
+.btn{min-height:44px;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-weight:600;font-size:15px}
+.btn.pri{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn:disabled{opacity:.5;cursor:default}
+.pt{background:var(--teal);color:var(--teal-ink);padding:18px max(3vw,16px)}
+.pt-row{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:baseline;max-width:1240px;margin:0 auto}
+.pt h1{margin:0;font-size:clamp(24px,3vw,32px);line-height:1.1;font-weight:700;text-wrap:balance}
+.pt .meta{font-size:15px;opacity:.9;display:flex;flex-wrap:wrap;gap:4px 18px}
+.pt .story{max-width:1240px;margin:10px auto 0;font-size:16px;line-height:1.55;opacity:.95;max-width:min(1240px,100%)}
+.pt .story p{margin:0;max-width:80ch}
+.pt .tag{font-size:13px;border:1px solid currentColor;border-radius:99px;padding:1px 9px;opacity:.85;white-space:nowrap}
+main{max-width:1240px;margin:0 auto;padding:20px max(3vw,16px) 40px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:20px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card h2{margin:0 0 12px;font-size:19px;line-height:1.2}
+.sub{color:var(--mute);font-size:14px;margin:-6px 0 12px}
+.search{position:relative}
+.search input{width:100%;padding-left:40px}
+.search svg{position:absolute;left:12px;top:13px;pointer-events:none;color:var(--mute)}
+.res{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--line);border-radius:8px;max-height:360px;overflow:auto}
+.res:empty{display:none}
+.res li{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}
+.res li:last-child{border-bottom:0}
+.res li[aria-selected=true],.res li:hover{background:var(--soft)}
+.res .t{font-weight:600}
+.res .c,.code{font-variant-numeric:tabular-nums;color:var(--mute);font-size:13px;white-space:nowrap}
+.res .f{grid-column:1/-1;color:var(--mute);font-size:13px}
+.pill{display:inline-block;font-size:13px;line-height:1.2;padding:3px 8px;border-radius:99px;background:var(--soft);color:var(--teal);font-weight:600;white-space:nowrap}
+.pill.f{background:var(--amber-soft);color:var(--amber)}
+.pill.s{background:var(--line);color:var(--ink)}
+.hint{color:var(--mute);font-size:14px;margin:10px 0 0}
+.detail{margin-top:16px;border-top:1px solid var(--line);padding-top:16px}
+.detail[hidden]{display:none}
+.concept{background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:14px}
+.concept .pref{font-weight:700;font-size:18px;line-height:1.25}
+.concept dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:10px 0 0;font-size:14px}
+.concept dt{color:var(--mute)}
+.concept dd{margin:0;overflow-wrap:anywhere}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fields label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600}
+.fields .full{grid-column:1/-1}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{min-height:40px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:500}
+.seg button[aria-pressed=true]{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.listhead{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.listhead h2{margin:0}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{text-align:left;font-size:13px;color:var(--mute);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td .note{display:block;color:var(--mute);font-size:13px;margin-top:2px}
+tr.inactive td{color:var(--mute)}
+tr.flash td{animation:fl 1.2s ease-out}
+@keyframes fl{from{background:var(--soft)}to{background:transparent}}
+@media(prefers-reduced-motion:reduce){tr.flash td{animation:none}}
+.st{font-size:13px;font-weight:600;white-space:nowrap}
+.st.actief{color:var(--teal)}.st.opgelost,.st.inactief{color:var(--mute)}
+.ver{font-size:13px;color:var(--mute);white-space:nowrap}
+.rowbtn{min-height:36px;min-width:36px;border:1px solid transparent;background:transparent;border-radius:6px;color:var(--mute);font-size:14px;padding:4px 8px}
+.rowbtn:hover{border-color:var(--line);color:var(--ink)}
+.empty{padding:28px 10px;text-align:center;color:var(--mute)}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.fb{margin-top:16px}
+.fb[hidden]{display:none}
+.score{font-size:18px;font-weight:700;margin:0 0 10px}
+.fbi{border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:15px}
+.fbi b{display:block}
+.fbi.ok{background:var(--ok-soft)}.fbi.near{background:var(--amber-soft)}.fbi.miss{background:var(--red-soft)}.fbi.extra{background:var(--bg)}
+.fbi .lab{font-size:13px;font-weight:700;text-transform:none}
+.fbi.ok .lab{color:var(--teal)}.fbi.near .lab{color:var(--amber)}.fbi.miss .lab{color:var(--red)}.fbi.extra .lab{color:var(--mute)}
+.fbi button{margin-top:6px;min-height:36px;font-size:14px;padding:4px 10px}
+details.fhir{margin-top:16px}
+details.fhir summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
+pre{overflow-x:auto;background:var(--bg);border-radius:8px;padding:12px;font-size:13px;line-height:1.45;max-height:420px}
+.foot{max-width:1240px;margin:0 auto;padding:0 max(3vw,16px) 40px;color:var(--mute);font-size:13px}
+.foot p{margin:4px 0;max-width:110ch}
+.ov{position:fixed;inset:0;background:rgb(0 0 0 / .45);display:grid;place-items:center;padding:16px;z-index:20}
+.ov[hidden]{display:none}
+.dlg{background:var(--card);border-radius:12px;padding:20px;width:min(560px,100%);max-height:90vh;overflow:auto}
+.dlg h2{margin:0 0 6px;font-size:20px}
+.dlg label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600;margin-top:12px}
+.dlg input{width:100%}
+.dlg .chk{flex-direction:row;align-items:center;gap:10px}
+.dlg .chk input{width:22px;height:22px;min-height:0}
+.msg{font-size:14px;margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--bg)}
+.msg:empty{display:none}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;display:flex;gap:12px;align-items:center;z-index:30;font-size:15px;max-width:calc(100% - 32px)}
+.toast[hidden]{display:none}
+.toast button{background:transparent;border:0;color:inherit;font-weight:700;text-decoration:underline;min-height:36px}
+@media(max-width:600px){.fields{grid-template-columns:minmax(0,1fr)}table{font-size:14px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:7em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:6.5em;margin-inline-start:-7em;color:var(--mute);font-size:13px}.stack td:empty{display:none}}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="7" fill="var(--teal)"/><path d="M8 9h12M8 14h12M8 19h7" stroke="var(--teal-ink)" stroke-width="2.4" stroke-linecap="round"/></svg>Oefen-EPD · Probleemlijst</div>
+  <div class="right">
+    <label for="casus" style="font-size:14px;color:var(--mute)">Casus</label>
+    <select id="casus"></select>
+    <span class="mode" id="mode">Offline catalogus</span>
+    <button class="btn" id="openCfg">Instellingen</button>
+  </div>
+</header>
+
+<section class="pt" aria-label="Patiënt">
+  <div class="pt-row">
+    <h1 id="ptName"></h1>
+    <div class="meta" id="ptMeta"></div>
+    <span class="tag">Fictieve patiënt</span>
+  </div>
+  <div class="story"><p id="ptStory"></p></div>
+</section>
+
+<main>
+  <section class="card" aria-labelledby="h-add">
+    <h2 id="h-add">Probleem toevoegen</h2>
+    <p class="sub">Zoek in het Nederlands, op synoniem, afkorting of SNOMED-code.</p>
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="bv. suikerziekte, VKF, longontsteking, 44054006" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="res" aria-autocomplete="list">
+    </div>
+    <ul class="res" id="res" role="listbox" aria-label="Zoekresultaten"></ul>
+    <p class="hint" id="hint">Typ minstens 2 tekens. Tip: probeer ook een volkse term als ‘hoge bloeddruk’.</p>
+
+    <div class="detail" id="detail" hidden>
+      <div class="concept" id="concept"></div>
+      <div class="fields">
+        <label class="full">Type
+          <div class="seg" data-f="cat"><button type="button" data-v="probleem">Probleem</button><button type="button" data-v="diagnose">Diagnose</button></div>
+        </label>
+        <label class="full">Klinische status
+          <div class="seg" data-f="status"><button type="button" data-v="actief">Actief</button><button type="button" data-v="inactief">Inactief</button><button type="button" data-v="opgelost">Opgelost</button></div>
+        </label>
+        <label class="full">Verificatie
+          <div class="seg" data-f="ver"><button type="button" data-v="bevestigd">Bevestigd</button><button type="button" data-v="vermoeden">Vermoeden</button><button type="button" data-v="uitgesloten">Uitgesloten</button></div>
+        </label>
+        <label>Begindatum<input type="date" id="onset"></label>
+        <label>Lateraliteit / locatie<input type="text" id="site" placeholder="optioneel, bv. rechts"></label>
+        <label class="full">Toelichting<textarea id="note" placeholder="Vrije tekst, zoals in het EPD"></textarea></label>
+      </div>
+      <div class="actions">
+        <button class="btn pri" id="save">Toevoegen aan probleemlijst</button>
+        <button class="btn ghost" id="cancel">Annuleren</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-list">
+    <div class="listhead">
+      <h2 id="h-list">Probleemlijst <span class="code" id="count"></span></h2>
+      <div class="seg" id="filter"><button type="button" data-v="actief" aria-pressed="true">Actief</button><button type="button" data-v="alle" aria-pressed="false">Alle</button></div>
+    </div>
+    <div id="listWrap"></div>
+    <div class="tools">
+      <button class="btn pri" id="check">Controleer met modeloplossing</button>
+      <button class="btn" id="copyFhir">Kopieer als FHIR</button>
+      <button class="btn ghost" id="clear">Lijst leegmaken</button>
+    </div>
+    <div class="fb" id="fb" hidden></div>
+    <details class="fhir"><summary>Bekijk als FHIR Condition-resources</summary><pre id="fhir"></pre></details>
+  </section>
+</main>
+
+<footer class="foot">
+  <p><b>Offline catalogus:</b> ±170 veelvoorkomende SNOMED CT-concepten (International Edition) met didactische Nederlandse termen. Dat zijn <b>niet</b> de officiële termen uit de Belgische editie. Met de live-modus (Instellingen) zoek je in de volledige Belgische editie.</p>
+  <p>SNOMED CT® is eigendom van SNOMED International. Gebruik in België valt onder de nationale licentie via de Belgische NRC (FOD Volksgezondheid). Alleen voor onderwijs, niet voor klinisch gebruik.</p>
+</footer>
+
+<div class="ov" id="cfg" hidden role="dialog" aria-modal="true" aria-labelledby="cfgT">
+  <div class="dlg">
+    <h2 id="cfgT">Instellingen terminologieserver</h2>
+    <p class="sub" style="margin:0">Live zoeken gebruikt de Snowstorm-API. Op deze gedeelde pagina blokkeert de browser externe verbindingen. Live-modus werkt dus alleen als je dit HTML-bestand zelf host (lokaal, op intranet of op GitHub Pages).</p>
+    <label class="chk"><input type="checkbox" id="cLive"> Live zoeken in SNOMED CT (Belgische editie)</label>
+    <label>Server-URL<input type="text" id="cServer"></label>
+    <label>Branch / editie<input type="text" id="cBranch"></label>
+    <label>Accept-Language (taalrefset)<input type="text" id="cLang"></label>
+    <label>Semantische tags (komma-gescheiden)<input type="text" id="cTags"></label>
+    <div class="msg" id="cMsg"></div>
+    <div class="actions">
+      <button class="btn pri" id="cSave">Opslaan</button>
+      <button class="btn" id="cTest">Test verbinding</button>
+      <button class="btn ghost" id="cClose">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden><span id="toastT"></span><button id="toastU">Ongedaan maken</button></div>
+
+<script>
+{
+/* ---------- Offline catalogus: [conceptId, NL-term, EN FSN, tag d/f/s, synoniemen] ---------- */
+const RAW=[
+['38341003','Hypertensie','Hypertensive disorder, systemic arterial','d','hoge bloeddruk|arteriële hypertensie|HT'],
+['59621000','Essentiële hypertensie','Essential hypertension','d','primaire hypertensie'],
+['45007003','Hypotensie','Low blood pressure','d','lage bloeddruk'],
+['73211009','Diabetes mellitus','Diabetes mellitus','d','suikerziekte|DM'],
+['44054006','Diabetes mellitus type 2','Diabetes mellitus type 2','d','DM2|DM type 2|type 2 diabetes|ouderdomsdiabetes|suikerziekte'],
+['237599002','Insulinebehandelde diabetes mellitus type 2','Insulin treated type 2 diabetes mellitus','d','DM2 met insuline|type 2 diabetes insuline|suikerziekte'],
+['46635009','Diabetes mellitus type 1','Diabetes mellitus type 1','d','DM1|type 1 diabetes|jeugddiabetes'],
+['11687002','Zwangerschapsdiabetes','Gestational diabetes mellitus','d','gestationele diabetes'],
+['4855003','Diabetische retinopathie','Retinopathy due to diabetes mellitus','d','retinopathie diabetes'],
+['230572002','Diabetische neuropathie','Neuropathy due to diabetes mellitus','d','polyneuropathie diabetes'],
+['127013003','Diabetische nefropathie','Disorder of kidney due to diabetes mellitus','d','diabetische nierziekte'],
+['302866003','Hypoglykemie','Hypoglycemia','d','hypo|lage bloedsuiker'],
+['80394007','Hyperglykemie','Hyperglycemia','d','hoge bloedsuiker'],
+['55822004','Hyperlipidemie','Hyperlipidemia','d','dyslipidemie|verhoogde bloedvetten'],
+['13644009','Hypercholesterolemie','Hypercholesterolemia','d','hoge cholesterol|verhoogde cholesterol'],
+['414916001','Obesitas','Obesity','d','adipositas|zwaarlijvigheid'],
+['162864005','BMI 30 of hoger – obesitas','Body mass index 30+ - obesity','f','BMI boven 30'],
+['238131007','Overgewicht','Overweight','f','te zwaar'],
+['248342006','Ondergewicht','Underweight','f','te mager'],
+['40930008','Hypothyreoïdie','Hypothyroidism','d','trage schildklier|hypothyreose'],
+['34486009','Hyperthyreoïdie','Hyperthyroidism','d','snelle schildklier|hyperthyreose'],
+['709044004','Chronische nierziekte','Chronic kidney disease','d','CNI|chronische nierinsufficiëntie|CKD'],
+['431855005','Chronische nierziekte stadium 1','Chronic kidney disease stage 1','d','CNI stadium 1|CKD 1'],
+['431856006','Chronische nierziekte stadium 2','Chronic kidney disease stage 2','d','CNI stadium 2|CKD 2'],
+['433144002','Chronische nierziekte stadium 3','Chronic kidney disease stage 3','d','CNI stadium 3|CKD 3'],
+['431857002','Chronische nierziekte stadium 4','Chronic kidney disease stage 4','d','CNI stadium 4|CKD 4'],
+['433146000','Chronische nierziekte stadium 5','Chronic kidney disease stage 5','d','CNI stadium 5|CKD 5|eindstadium nierfalen'],
+['14669001','Acuut nierfalen','Acute renal failure syndrome','d','acute nierinsufficiëntie|acute nierschade|AKI'],
+['95570007','Niersteen','Kidney stone','d','nefrolithiase|nierstenen'],
+['68566005','Urineweginfectie','Urinary tract infectious disease','d','UWI|blaasontsteking|cystitis'],
+['197927001','Recidiverende urineweginfecties','Recurrent urinary tract infection','d','herhaalde UWI'],
+['45816000','Pyelonefritis','Pyelonephritis','d','nierbekkenontsteking'],
+['266569009','Benigne prostaathyperplasie','Benign prostatic hyperplasia','d','BPH|prostaatvergroting'],
+['53741008','Coronair lijden','Coronary arteriosclerosis','d','coronaire atherosclerose|kransslagaderlijden|CAD'],
+['194828000','Angina pectoris','Angina','d','angor'],
+['22298006','Myocardinfarct','Myocardial infarction','d','hartinfarct|hartaanval|MI'],
+['57054005','Acuut myocardinfarct','Acute myocardial infarction','d','AMI|acuut hartinfarct'],
+['401303003','Acuut ST-elevatie-myocardinfarct','Acute ST segment elevation myocardial infarction','d','STEMI'],
+['401314000','Acuut non-ST-elevatie-myocardinfarct','Acute non-ST segment elevation myocardial infarction','d','NSTEMI'],
+['399211009','Voorgeschiedenis van myocardinfarct','History of myocardial infarction','s','oud infarct|status na infarct'],
+['49436004','Voorkamerfibrillatie','Atrial fibrillation','d','VKF|atriumfibrillatie|AF'],
+['84114007','Hartfalen','Heart failure','d','decompensatio cordis|hartdecompensatie|hartinsufficiëntie'],
+['42343007','Congestief hartfalen','Congestive heart failure','d','decompensatio cordis'],
+['48447003','Chronisch hartfalen','Chronic heart failure','d','chronische hartinsufficiëntie'],
+['60573004','Aortaklepstenose','Aortic valve stenosis','d','aortastenose'],
+['48724000','Mitralisklepinsufficiëntie','Mitral valve regurgitation','d','mitralisregurgitatie|mitralislek'],
+['3238004','Pericarditis','Pericarditis','d','hartzakontsteking'],
+['50920009','Myocarditis','Myocarditis','d','hartspierontsteking'],
+['271594007','Syncope','Syncope','d','flauwte|flauwvallen|wegvallen'],
+['29857009','Pijn op de borst','Chest pain','f','thoracale pijn|retrosternale pijn'],
+['128053003','Diepe veneuze trombose','Deep venous thrombosis','d','DVT|trombose been'],
+['59282003','Longembolie','Pulmonary embolism','d','LE'],
+['399957001','Perifeer arterieel vaatlijden','Peripheral arterial occlusive disease','d','PAV|claudicatio|etalagebenen'],
+['233985008','Abdominaal aorta-aneurysma','Abdominal aortic aneurysm','d','AAA'],
+['230690007','Cerebrovasculair accident','Cerebrovascular accident','d','CVA|beroerte|herseninfarct'],
+['266257000','Transiënt ischemisch accident','Transient ischemic attack','d','TIA'],
+['37796009','Migraine','Migraine','d','schele hoofdpijn'],
+['25064002','Hoofdpijn','Headache','f','cefalea'],
+['84757009','Epilepsie','Epilepsy','d','vallende ziekte'],
+['49049000','Ziekte van Parkinson','Parkinson\'s disease','d','parkinson'],
+['24700007','Multiple sclerose','Multiple sclerosis','d','MS'],
+['52448006','Dementie','Dementia','d','geheugenstoornis'],
+['26929004','Ziekte van Alzheimer','Alzheimer\'s disease','d','alzheimer|alzheimerdementie'],
+['404640003','Duizeligheid','Dizziness','f','draaierigheid|zweverigheid'],
+['57406009','Carpaletunnelsyndroom','Carpal tunnel syndrome','d','CTS'],
+['195967001','Astma','Asthma','d','astma bronchiale'],
+['13645005','COPD','Chronic obstructive lung disease','d','chronisch obstructief longlijden|CARA'],
+['233604007','Pneumonie','Pneumonia','d','longontsteking'],
+['32398004','Bronchitis','Bronchitis','d','luchtwegontsteking'],
+['6142004','Influenza','Influenza','d','griep'],
+['82272006','Verkoudheid','Common cold','d','neusverkoudheid|rhinitis acuta'],
+['840539006','COVID-19','Disease caused by severe acute respiratory syndrome coronavirus 2','d','corona|SARS-CoV-2'],
+['78275009','Obstructief slaapapneusyndroom','Obstructive sleep apnea syndrome','d','OSAS|slaapapneu'],
+['56717001','Tuberculose','Tuberculosis','d','TBC'],
+['49727002','Hoest','Cough','f','hoesten'],
+['267036007','Dyspneu','Dyspnea','f','kortademigheid|benauwdheid'],
+['36971009','Sinusitis','Sinusitis','d','bijholteontsteking|voorhoofdsholteontsteking'],
+['65363002','Otitis media','Otitis media','d','middenoorontsteking|oorontsteking'],
+['43878008','Streptokokkenangina','Streptococcal sore throat','d','keelontsteking|angina tonsillaris'],
+['61582004','Allergische rinitis','Allergic rhinitis','d','hooikoorts'],
+['235595009','Gastro-oesofageale refluxziekte','Gastroesophageal reflux disease','d','GERD|reflux|zuurbranden|oprispingen'],
+['397825006','Maagulcus','Gastric ulcer','d','maagzweer'],
+['34000006','Ziekte van Crohn','Crohn\'s disease','d','crohn'],
+['64766004','Colitis ulcerosa','Ulcerative colitis','d','CU'],
+['10743008','Prikkelbaredarmsyndroom','Irritable bowel syndrome','d','PDS|IBS|spastisch colon'],
+['74400008','Appendicitis','Appendicitis','d','blindedarmontsteking'],
+['235919008','Cholelithiasis','Cholelithiasis','d','galstenen'],
+['19943007','Levercirrose','Cirrhosis of liver','d','cirrose'],
+['197321007','Leversteatose','Steatosis of liver','d','leververvetting|vette lever'],
+['21522001','Buikpijn','Abdominal pain','f','abdominale pijn'],
+['422587007','Misselijkheid','Nausea','f','nausea'],
+['422400008','Braken','Vomiting','d','overgeven|vomitus'],
+['62315008','Diarree','Diarrhea','f','buikloop'],
+['14760008','Constipatie','Constipation','f','obstipatie|verstopping'],
+['91302008','Sepsis','Sepsis','d','bloedvergiftiging'],
+['76571007','Septische shock','Septic shock','d','shock sepsis'],
+['86406008','Hiv-infectie','Human immunodeficiency virus infection','d','HIV'],
+['66071002','Hepatitis B','Viral hepatitis type B','d','HBV'],
+['50711007','Hepatitis C','Viral hepatitis C','d','HCV'],
+['128045006','Cellulitis','Cellulitis','d','flegmone'],
+['386661006','Koorts','Fever','f','febris|verhoging'],
+['8098009','Seksueel overdraagbare aandoening','Sexually transmitted infectious disease','d','SOA'],
+['105629000','Chlamydia-infectie','Chlamydial infection','d','chlamydia'],
+['15628003','Gonorroe','Gonorrhea','d','druiper'],
+['240532009','HPV-infectie','Human papilloma virus infection','d','HPV|humaan papillomavirus'],
+['271737000','Anemie','Anemia','d','bloedarmoede'],
+['87522002','IJzergebreksanemie','Iron deficiency anemia','d','ferriprieve anemie|ijzertekort'],
+['302215000','Trombocytopenie','Thrombocytopenic disorder','d','tekort aan bloedplaatjes'],
+['363346000','Maligne neoplasma','Malignant neoplastic disease','d','kanker|maligniteit|kwaadaardige tumor'],
+['254837009','Borstkanker','Malignant neoplasm of breast','d','mammacarcinoom|borstcarcinoom'],
+['363443007','Ovariumcarcinoom','Malignant tumor of ovary','d','eierstokkanker|ovariumkanker|ovariumtumor maligne'],
+['363354003','Baarmoederhalskanker','Malignant tumor of cervix','d','cervixcarcinoom|cervixkanker'],
+['363406005','Coloncarcinoom','Malignant tumor of colon','d','dikkedarmkanker|darmkanker'],
+['363358000','Longkanker','Malignant tumor of lung','d','longcarcinoom|bronchuscarcinoom'],
+['399068003','Prostaatkanker','Malignant tumor of prostate','d','prostaatcarcinoom'],
+['363418001','Pancreascarcinoom','Malignant tumor of pancreas','d','alvleesklierkanker'],
+['363349007','Maagkanker','Malignant tumor of stomach','d','maagcarcinoom'],
+['93870000','Maligne neoplasma van de lever','Malignant neoplasm of liver','d','leverkanker'],
+['372244006','Maligne melanoom','Malignant melanoma','d','melanoom'],
+['118600007','Maligne lymfoom','Malignant lymphoma','d','lymfoom'],
+['93143009','Leukemie','Leukemia, disease','d','bloedkanker'],
+['109989006','Multipel myeloom','Multiple myeloma','d','ziekte van Kahler|ziekte van Kahler'],
+['128462008','Metastasen','Secondary malignant neoplastic disease','d','uitzaaiingen|secundaire maligniteit'],
+['94381002','Levermetastasen','Secondary malignant neoplasm of liver','d','uitzaaiingen lever|metastasen lever'],
+['94225005','Hersenmetastasen','Secondary malignant neoplasm of brain','d','uitzaaiingen hersenen|metastasen hersenen'],
+['95315005','Uterusmyoom','Uterine leiomyoma','d','vleesboom|myoom|leiomyoom'],
+['129103003','Endometriose','Endometriosis','d','endometriosis'],
+['266599000','Dysmenorroe','Dysmenorrhea','d','pijnlijke menstruatie|menstruatiepijn'],
+['386692008','Menorragie','Menorrhagia','d','hevig menstrueel bloedverlies'],
+['14302001','Amenorroe','Amenorrhea','f','uitblijven menstruatie'],
+['77386006','Zwanger','Pregnant','f','zwangerschap|graviditeit'],
+['398254007','Pre-eclampsie','Pre-eclampsia','d','zwangerschapsvergiftiging'],
+['17369002','Miskraam','Miscarriage','d','spontane abortus'],
+['34801009','Buitenbaarmoederlijke zwangerschap','Ectopic pregnancy','d','EUG|extra-uteriene graviditeit'],
+['64859006','Osteoporose','Osteoporosis','d','botontkalking'],
+['396275006','Artrose','Osteoarthritis','d','osteoartritis|slijtage gewricht'],
+['239873007','Gonartrose','Osteoarthritis of knee','d','knieartrose'],
+['69896004','Reumatoïde artritis','Rheumatoid arthritis','d','RA|reuma'],
+['90560007','Jicht','Gout','d','arthritis urica'],
+['203082005','Fibromyalgie','Fibromyalgia','d','fibromyalgie'],
+['161891005','Rugpijn','Backache','f','rugklachten'],
+['279039007','Lage rugpijn','Low back pain','f','lumbago|lumbalgie'],
+['22253000','Pijn','Pain','f','pijnklacht'],
+['82423001','Chronische pijn','Chronic pain','f','chronisch pijnsyndroom'],
+['125605004','Botfractuur','Fracture of bone','d','breuk|fractuur'],
+['5913000','Collumfractuur','Fracture of neck of femur','d','heupfractuur|dijbeenhalsfractuur'],
+['65966004','Onderarmfractuur','Fracture of forearm','d','polsbreuk|armbreuk'],
+['44465007','Enkelverstuiking','Sprain of ankle','d','enkeldistorsie|verzwikte enkel'],
+['193570009','Cataract','Cataract','d','staar|grijze staar'],
+['23986001','Glaucoom','Glaucoma','d','groene staar'],
+['24079001','Atopische dermatitis','Atopic dermatitis','d','eczeem|atopisch eczeem|constitutioneel eczeem'],
+['9014002','Psoriasis','Psoriasis','d','psoriasis'],
+['271807003','Huiduitslag','Eruption of skin','d','rash|exantheem'],
+['35489007','Depressie','Depressive disorder','d','depressieve stoornis|somberheid'],
+['370143000','Depressieve stoornis, majeur','Major depressive disorder','d','majeure depressie'],
+['197480006','Angststoornis','Anxiety disorder','d','angst stoornis'],
+['48694002','Angst','Anxiety','f','ongerustheid'],
+['13746004','Bipolaire stoornis','Bipolar disorder','d','manisch-depressief'],
+['58214004','Schizofrenie','Schizophrenia','d','psychose schizofrenie'],
+['406506008','ADHD','Attention deficit hyperactivity disorder','d','aandachtstekortstoornis'],
+['408856003','Autistische stoornis','Autistic disorder','d','autisme|ASS'],
+['47505003','Posttraumatische stressstoornis','Posttraumatic stress disorder','d','PTSS'],
+['191736004','Obsessieve-compulsieve stoornis','Obsessive-compulsive disorder','d','OCS|dwangstoornis'],
+['193462001','Insomnie','Insomnia','d','slapeloosheid|slaapproblemen'],
+['7200002','Alcoholisme','Alcoholism','d','alcoholverslaving|alcoholafhankelijkheid'],
+['84229001','Vermoeidheid','Fatigue','f','moeheid'],
+['77176002','Roker','Smoker','f','rookt|tabaksgebruik|roken'],
+['8517006','Ex-roker','Ex-smoker','f','gestopt met roken|voormalig roker'],
+['266919005','Nooit gerookt','Never smoked tobacco','f','niet-roker'],
+['428251008','Voorgeschiedenis van appendectomie','History of appendectomy','s','status na appendectomie'],
+['160303001','Familiale voorgeschiedenis van diabetes mellitus','Family history: Diabetes mellitus','s','familie diabetes']
+];
+const TAGS={d:['aandoening','disorder'],f:['bevinding','finding'],s:['situatie','situation']};
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const CAT=RAW.map(([id,nl,en,t,syn])=>{const syns=syn?syn.split('|').filter(x=>x!==nl):[];return{id,nl,fsn:`${en} (${TAGS[t][1]})`,tag:TAGS[t][0],t,syns,
+  _nl:norm(nl),_syn:syns.map(norm),_en:norm(en),_w:{nl:norm(nl).split(' '),syn:norm(syns.join(' ')).split(' '),en:norm(en).split(' ')}}});
+const BYID=Object.fromEntries(CAT.map(c=>[c.id,c]));
+
+/* ---------- Casussen ---------- */
+const CASES=[
+{id:'c1',name:'Anna Peeters',meta:['Vrouw','68 jaar','Raadpleging nefrologie'],
+ story:'Mevrouw Peeters komt op raadpleging nefrologie. Ze heeft sinds 2014 diabetes type 2 en spuit sinds 2021 insuline. Haar hoge bloeddruk wordt behandeld. De eGFR schommelt al twee jaar rond 45 ml/min. Ze stopte in 2010 met roken. BMI 32.',
+ exp:[
+  {c:'237599002',near:['44054006','73211009'],hint:'Diabetes: het type én de behandeling bepalen de meest specifieke code.'},
+  {c:'38341003',alt:['59621000'],hint:'Bloeddruk.'},
+  {c:'433144002',near:['709044004','127013003'],hint:'Nierfunctie: eGFR 45 ml/min, al langer dan 3 maanden. Welk stadium?'},
+  {c:'8517006',near:['77176002'],hint:'Rookstatus.'},
+  {c:'414916001',alt:['162864005'],near:['238131007'],hint:'Gewicht (BMI 32).'}]},
+{id:'c2',name:'Marc Janssens',meta:['Man','74 jaar','Opname via spoed'],
+ story:'Meneer Janssens komt via spoed binnen met drukkende retrosternale pijn. Het troponine stijgt, het ECG toont geen ST-elevatie, wel nieuw ontdekte voorkamerfibrillatie. Hij is gekend met COPD en chronisch hartfalen. Hij rookt nog altijd 20 sigaretten per dag.',
+ exp:[
+  {c:'401314000',near:['57054005','22298006','194828000','29857009'],hint:'Acuut coronair syndroom zonder ST-elevatie.'},
+  {c:'49436004',hint:'Ritmestoornis op het ECG.'},
+  {c:'48447003',near:['84114007','42343007'],hint:'Gekend hartprobleem: let op het chronische karakter.'},
+  {c:'13645005',hint:'Longziekte.'},
+  {c:'77176002',near:['8517006'],hint:'Rookstatus.'}]},
+{id:'c3',name:'Sofie Willems',meta:['Vrouw','57 jaar','Gynaecologische oncologie'],
+ story:'Opvolging gynaecologische oncologie. Mevrouw Willems heeft een hooggradig sereus ovariumcarcinoom; bij de stadiëring werden levermetastasen gevonden. Tijdens de chemotherapie kreeg ze een diepe veneuze trombose van het rechterbeen. Hb 9,8 g/dl met een laag ferritine. Ze voelt zich somber; de psychiater bevestigde een depressie.',
+ exp:[
+  {c:'363443007',near:['363346000'],hint:'Primaire tumor: kies de code met de juiste lokalisatie.'},
+  {c:'94381002',near:['128462008','93870000'],hint:'Uitzaaiingen: primaire levertumor of metastase?'},
+  {c:'128053003',near:['59282003'],hint:'Trombo-embolische complicatie (lateraliteit noteer je in het veld ernaast).'},
+  {c:'87522002',near:['271737000'],hint:'Lage Hb met laag ferritine: welk type anemie?'},
+  {c:'35489007',alt:['370143000'],near:['48694002'],hint:'Stemming.'}]},
+{id:'vrij',name:'Vrije oefening',meta:['Geen modeloplossing'],story:'Lege probleemlijst om vrij te oefenen, bijvoorbeeld met een casus die je zelf vertelt of projecteert.',exp:[]}
+];
+
+/* ---------- Opslag ---------- */
+const KEY='oefen-epd-snomed-v1';
+let S={casus:'c1',lists:{},cfg:{live:false,server:'https://browser.ihtsdotools.org/snowstorm/snomed-ct',branch:'MAIN/SNOMEDCT-BE',lang:'nl-X-31000172101,nl,en',tags:'disorder,finding,situation'},filter:'actief'};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s)S={...S,...s,cfg:{...S.cfg,...(s.cfg||{})}}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const list=()=>S.lists[S.casus]||(S.lists[S.casus]=[]);
+const curCase=()=>CASES.find(c=>c.id===S.casus)||CASES[0];
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tagPill=t=>`<span class="pill ${t==='bevinding'?'f':t==='situatie'?'s':''}">${esc(t)}</span>`;
+const fmtDate=d=>d?new Date(d+'T00:00').toLocaleDateString('nl-BE',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+
+/* ---------- Zoeken ---------- */
+function offlineSearch(q){
+  const nq=norm(q);if(!nq)return[];
+  if(/^\d+$/.test(nq))return CAT.filter(c=>c.id.startsWith(nq)).slice(0,12);
+  const toks=nq.split(' ');
+  const hit=ws=>toks.every(t=>ws.some(w=>w.startsWith(t)));
+  const out=[];
+  for(const c of CAT){
+    let s=0;
+    if(c._nl.startsWith(nq))s=100;else if(c._syn.some(x=>x.startsWith(nq)))s=85;
+    else if(hit(c._w.nl))s=65;else if(c._syn.some(x=>hit(x.split(' '))))s=50;
+    else if(hit([...c._w.nl,...c._w.syn]))s=40;else if(hit(c._w.en))s=30;
+    if(s){s-=c.nl.length*.15;out.push([s,c])}
+  }
+  return out.sort((a,b)=>b[0]-a[0]).slice(0,12).map(x=>x[1]);
+}
+const tagFromFsn=f=>{const m=/\(([^)]+)\)\s*$/.exec(f||'');const k=m?m[1]:'';return {disorder:'aandoening',finding:'bevinding',situation:'situatie'}[k]||k||'concept'};
+async function liveSearch(q){
+  const c=S.cfg;
+  const tags=c.tags.split(',').map(s=>s.trim()).filter(Boolean).map(t=>'&semanticTags='+encodeURIComponent(t)).join('');
+  const url=`${c.server.replace(/\/$/,'')}/browser/${c.branch}/descriptions?term=${encodeURIComponent(q)}&active=true&conceptActive=true&groupByConcept=true&limit=25${tags}`;
+  const r=await fetch(url,{headers:{'Accept-Language':c.lang,'Accept':'application/json'}});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  return (j.items||[]).map(it=>{const co=it.concept||{};const fsn=co.fsn?.term||'';const pt=co.pt?.term||it.term;
+    return{id:co.conceptId,nl:pt,fsn,tag:tagFromFsn(fsn),syns:it.term&&it.term!==pt?[it.term]:[],live:true}});
+}
+
+let results=[],sel=-1,timer=null,reqN=0;
+function renderResults(note){
+  const ul=$('res');
+  ul.innerHTML=results.map((c,i)=>`<li role="option" id="r${i}" data-i="${i}" aria-selected="${i===sel}"><span class="t">${esc(c.nl)}</span><span class="c">${esc(c.id)}</span><span class="f">${tagPill(c.tag)} ${esc(c.fsn)}</span></li>`).join('');
+  $('q').setAttribute('aria-expanded',results.length?'true':'false');
+  $('q').setAttribute('aria-activedescendant',sel>=0?'r'+sel:'');
+  if(note!==undefined)$('hint').textContent=note;
+}
+function doSearch(){
+  const q=$('q').value.trim();sel=-1;
+  if(q.length<2){results=[];renderResults('Typ minstens 2 tekens. Tip: probeer ook een volkse term als ‘hoge bloeddruk’.');return}
+  const n=++reqN;
+  if(S.cfg.live){
+    renderResults('Zoeken in SNOMED CT…');
+    liveSearch(q).then(r=>{if(n!==reqN)return;results=r;renderResults(r.length?`${r.length} resultaten uit ${S.cfg.branch}.`:'Geen resultaten in de live-editie.')})
+      .catch(e=>{if(n!==reqN)return;results=offlineSearch(q);renderResults(`Live zoeken lukt niet (${e.message||'verbinding geblokkeerd'}). Resultaten uit de offline catalogus.`)});
+  }else{
+    results=offlineSearch(q);
+    renderResults(results.length?`${results.length} resultaat${results.length>1?'en':''} in de offline catalogus.`:'Niets gevonden in de offline catalogus. Probeer een synoniem of zet live zoeken aan.');
+  }
+}
+$('q').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(doSearch,S.cfg.live?300:60)});
+$('q').addEventListener('keydown',e=>{
+  if(!results.length)return;
+  if(e.key==='ArrowDown'){sel=Math.min(sel+1,results.length-1);renderResults();e.preventDefault();$('r'+sel)?.scrollIntoView({block:'nearest'})}
+  else if(e.key==='ArrowUp'){sel=Math.max(sel-1,0);renderResults();e.preventDefault();$('r'+sel)?.scrollIntoView({block:'nearest'})}
+  else if(e.key==='Enter'&&sel>=0){e.preventDefault();pick(results[sel])}
+});
+$('res').addEventListener('click',e=>{const li=e.target.closest('li');if(li)pick(results[+li.dataset.i])});
+
+/* ---------- Detail / formulier ---------- */
+let draft=null,editUid=null;
+function setSeg(f,v){document.querySelectorAll(`.seg[data-f="${f}"] button`).forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v))}
+document.querySelectorAll('.seg[data-f]').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!draft)return;draft[g.dataset.f]=b.dataset.v;setSeg(g.dataset.f,b.dataset.v)}));
+function showConcept(c){
+  $('concept').innerHTML=`<div class="pref">${esc(c.nl)}</div>
+  <dl><dt>Concept-ID</dt><dd class="code" style="font-size:14px">${esc(c.id)}</dd>
+  <dt>FSN</dt><dd>${esc(c.fsn)}</dd>
+  <dt>Hiërarchie</dt><dd>${tagPill(c.tag)}</dd>
+  ${c.syns&&c.syns.length?`<dt>Synoniemen</dt><dd>${esc(c.syns.join(', '))}</dd>`:''}
+  <dt>Bron</dt><dd>${c.live?'Live: '+esc(S.cfg.branch):'Offline catalogus (didactische term)'}</dd></dl>`;
+}
+function openForm(d,isEdit){
+  draft=d;editUid=isEdit?d.uid:null;
+  showConcept(d.concept);
+  ['cat','status','ver'].forEach(f=>setSeg(f,d[f]));
+  $('onset').value=d.onset||'';$('site').value=d.site||'';$('note').value=d.note||'';
+  $('save').textContent=isEdit?'Wijzigingen opslaan':'Toevoegen aan probleemlijst';
+  $('detail').hidden=false;
+  $('detail').scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+}
+function pick(c){
+  if(!c)return;
+  const concept={id:c.id,nl:c.nl,fsn:c.fsn,tag:c.tag,syns:c.syns||[],live:!!c.live};
+  openForm({concept,cat:c.tag==='bevinding'||c.tag==='situatie'?'probleem':'diagnose',status:'actief',ver:'bevestigd',onset:'',site:'',note:''},false);
+  results=[];renderResults('');$('q').value='';
+  $('save').focus();
+}
+function closeForm(){draft=null;editUid=null;$('detail').hidden=true}
+$('cancel').addEventListener('click',closeForm);
+$('save').addEventListener('click',()=>{
+  if(!draft)return;
+  draft.onset=$('onset').value;draft.site=$('site').value.trim();draft.note=$('note').value.trim();
+  const L=list();let uid;
+  if(editUid){const i=L.findIndex(x=>x.uid===editUid);if(i>=0)L[i]={...draft};uid=editUid}
+  else{
+    if(L.some(x=>x.concept.id===draft.concept.id&&x.status==='actief')&&!confirmDup(draft))return;
+    uid=Date.now().toString(36)+Math.random().toString(36).slice(2,6);L.push({...draft,uid});
+  }
+  save();closeForm();renderList(uid);$('fb').hidden=true;$('q').focus();
+});
+let dupOk=null;
+function confirmDup(d){
+  if(dupOk===d.concept.id){dupOk=null;return true}
+  dupOk=d.concept.id;$('save').textContent='Staat al actief op de lijst: klik opnieuw om toch toe te voegen';return false;
+}
+
+/* ---------- Probleemlijst ---------- */
+function renderList(flash){
+  const L=list();const shown=S.filter==='actief'?L.filter(x=>x.status==='actief'):L;
+  $('count').textContent=L.length?`(${L.filter(x=>x.status==='actief').length} actief / ${L.length})`:'';
+  document.querySelectorAll('#filter button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.filter));
+  if(!shown.length){
+    $('listWrap').innerHTML=`<div class="empty"><b>${L.length?'Geen actieve problemen':'Nog geen problemen geregistreerd'}</b>${L.length?'Kies ‘Alle’ om opgeloste en inactieve problemen te zien.':'Lees de casus en zoek links de passende SNOMED CT-concepten.'}</div>`;
+  }else{
+    $('listWrap').innerHTML=`<table class="stack"><thead><tr><th>Probleem</th><th>SNOMED CT</th><th>Status</th><th>Begin</th><th></th></tr></thead><tbody>${
+      shown.map(x=>`<tr class="${x.status!=='actief'?'inactive':''} ${x.uid===flash?'flash':''}"><td><b>${esc(x.concept.nl)}</b>${x.site?` · ${esc(x.site)}`:''}<span class="note">${x.cat==='diagnose'?'Diagnose':'Probleem'} · ${tagPill(x.concept.tag)}${x.note?' · '+esc(x.note):''}</span></td>
+      <td class="code">${esc(x.concept.id)}</td>
+      <td><span class="st ${x.status}">${x.status[0].toUpperCase()+x.status.slice(1)}</span><br><span class="ver">${esc(x.ver)}</span></td>
+      <td style="white-space:nowrap">${fmtDate(x.onset)}</td>
+      <td style="white-space:nowrap"><button class="rowbtn" data-a="edit" data-u="${x.uid}" aria-label="Bewerk ${esc(x.concept.nl)}">Bewerk</button><button class="rowbtn" data-a="del" data-u="${x.uid}" aria-label="Verwijder ${esc(x.concept.nl)}">Verwijder</button></td></tr>`).join('')}</tbody></table>`;
+  }
+  $('fhir').textContent=JSON.stringify(fhirBundle(),null,2);
+}
+$('listWrap').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-a]');if(!b)return;
+  const L=list();const i=L.findIndex(x=>x.uid===b.dataset.u);if(i<0)return;
+  if(b.dataset.a==='edit')openForm(JSON.parse(JSON.stringify(L[i])),true);
+  else{const [gone]=L.splice(i,1);save();renderList();toast(`‘${gone.concept.nl}’ verwijderd`,()=>{L.splice(i,0,gone);save();renderList(gone.uid)})}
+});
+$('filter').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.filter=b.dataset.v;save();renderList()});
+$('clear').addEventListener('click',()=>{const L=list();if(!L.length)return;const old=L.slice();S.lists[S.casus]=[];save();renderList();$('fb').hidden=true;toast('Probleemlijst leeggemaakt',()=>{S.lists[S.casus]=old;save();renderList()})});
+
+let tT=null,undoFn=null;
+function toast(t,undo){$('toastT').textContent=t;undoFn=undo;$('toastU').hidden=!undo;$('toast').hidden=false;clearTimeout(tT);tT=setTimeout(()=>{$('toast').hidden=true;undoFn=null},6000)}
+$('toastU').addEventListener('click',()=>{if(undoFn)undoFn();undoFn=null;$('toast').hidden=true});
+
+/* ---------- FHIR ---------- */
+const CS={actief:'active',inactief:'inactive',opgelost:'resolved'},VS={bevestigd:'confirmed',vermoeden:'provisional',uitgesloten:'refuted'},CC={probleem:'problem-list-item',diagnose:'encounter-diagnosis'};
+function fhirBundle(){
+  const c=curCase();
+  return{resourceType:'Bundle',type:'collection',entry:list().map(x=>{const r={resourceType:'Condition',id:x.uid,
+    clinicalStatus:{coding:[{system:'http://terminology.hl7.org/CodeSystem/condition-clinical',code:CS[x.status]}]},
+    verificationStatus:{coding:[{system:'http://terminology.hl7.org/CodeSystem/condition-ver-status',code:VS[x.ver]}]},
+    category:[{coding:[{system:'http://terminology.hl7.org/CodeSystem/condition-category',code:CC[x.cat]}]}],
+    code:{coding:[{system:'http://snomed.info/sct',code:x.concept.id,display:x.concept.fsn.replace(/\s*\([^)]*\)\s*$/,'')}],text:x.concept.nl},
+    subject:{reference:'Patient/'+c.id,display:c.name}};
+    if(x.site)r.bodySite=[{text:x.site}];
+    if(x.onset)r.onsetDateTime=x.onset;
+    if(x.note)r.note=[{text:x.note}];
+    return{resource:r}})};
+}
+$('copyFhir').addEventListener('click',async()=>{
+  const t=JSON.stringify(fhirBundle(),null,2);
+  try{await navigator.clipboard.writeText(t);toast('FHIR-bundle gekopieerd')}
+  catch(e){const d=document.querySelector('details.fhir');d.open=true;const r=document.createRange();r.selectNodeContents($('fhir'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Kopiëren geblokkeerd: tekst is geselecteerd, gebruik Ctrl/Cmd+C')}
+});
+
+/* ---------- Controle ---------- */
+const nm=id=>BYID[id]?`${BYID[id].nl} <span class="code">${id}</span>`:`<span class="code">${id}</span>`;
+function check(){
+  const c=curCase();const fb=$('fb');
+  if(!c.exp.length){fb.hidden=false;fb.innerHTML='<p class="score">Vrije oefening: hier hoort geen modeloplossing bij.</p>';return}
+  const L=list().filter(x=>x.ver!=='uitgesloten');const used=new Set();let ok=0,near=0;
+  const items=c.exp.map((e,k)=>{
+    const good=[e.c,...(e.alt||[])];
+    const g=L.find(x=>good.includes(x.concept.id));
+    if(g){used.add(g.uid);ok++;return`<div class="fbi ok"><span class="lab">Juist</span><b>${nm(g.concept.id)}</b>${g.concept.id!==e.c?`Ook correct; de modeloplossing gebruikt ${nm(e.c)}.`:''}</div>`}
+    const n=L.find(x=>(e.near||[]).includes(x.concept.id));
+    if(n){used.add(n.uid);near++;return`<div class="fbi near"><span class="lab">Bijna</span><b>${nm(n.concept.id)}</b>${esc(e.hint)} Er bestaat een preciezere code.<br><button class="btn" data-rev="${k}">Toon beste code</button><span id="rv${k}"></span></div>`}
+    return`<div class="fbi miss"><span class="lab">Ontbreekt</span><b>Hint: ${esc(e.hint)}</b><button class="btn" data-rev="${k}">Toon code</button><span id="rv${k}"></span></div>`;
+  });
+  const extra=L.filter(x=>!used.has(x.uid)).map(x=>`<div class="fbi extra"><span class="lab">Extra</span><b>${nm(x.concept.id)}</b>Niet in de modeloplossing. Bespreek of dit een apart probleem is of al verklaard wordt door een diagnose.</div>`);
+  fb.hidden=false;
+  fb.innerHTML=`<p class="score">${ok} van ${c.exp.length} juist${near?`, ${near} bijna`:''}</p>${items.join('')}${extra.join('')}`;
+  fb.querySelectorAll('[data-rev]').forEach(b=>b.addEventListener('click',()=>{const e=c.exp[+b.dataset.rev];$('rv'+b.dataset.rev).innerHTML=` → ${nm(e.c)}`;b.remove()}));
+}
+$('check').addEventListener('click',check);
+
+/* ---------- Casus ---------- */
+$('casus').innerHTML=CASES.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+function renderCase(){
+  const c=curCase();$('casus').value=c.id;
+  $('ptName').textContent=c.name;
+  $('ptMeta').innerHTML=c.meta.map(m=>`<span>${esc(m)}</span>`).join('');
+  $('ptStory').textContent=c.story;
+  $('fb').hidden=true;closeForm();renderList();
+}
+$('casus').addEventListener('change',e=>{S.casus=e.target.value;save();renderCase()});
+
+/* ---------- Instellingen ---------- */
+function renderMode(){const m=$('mode');m.textContent=S.cfg.live?'Live: '+S.cfg.branch.split('/').pop():'Offline catalogus';m.classList.toggle('live',S.cfg.live)}
+function openCfg(){const c=S.cfg;$('cLive').checked=c.live;$('cServer').value=c.server;$('cBranch').value=c.branch;$('cLang').value=c.lang;$('cTags').value=c.tags;$('cMsg').textContent='';$('cfg').hidden=false;$('cLive').focus()}
+const readCfg=()=>({live:$('cLive').checked,server:$('cServer').value.trim(),branch:$('cBranch').value.trim(),lang:$('cLang').value.trim(),tags:$('cTags').value.trim()});
+$('openCfg').addEventListener('click',openCfg);
+$('cClose').addEventListener('click',()=>{$('cfg').hidden=true});
+$('cfg').addEventListener('click',e=>{if(e.target===$('cfg'))$('cfg').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cfg').hidden)$('cfg').hidden=true});
+$('cSave').addEventListener('click',()=>{S.cfg=readCfg();save();renderMode();$('cfg').hidden=true;doSearch()});
+$('cTest').addEventListener('click',async()=>{
+  const keep=S.cfg;S.cfg=readCfg();$('cMsg').textContent='Verbinding testen…';
+  try{const r=await liveSearch('diabetes');$('cMsg').textContent=`Gelukt: ${r.length} resultaten. Eerste: ${r[0]?r[0].nl+' ('+r[0].id+')':'–'}`}
+  catch(e){$('cMsg').textContent=`Mislukt (${e.message||'geblokkeerd'}). Op een gedeelde Claude-pagina is dat normaal: host het bestand zelf. Krijg je een CORS-fout, dan staat de server geen aanvragen van jouw domein toe.`}
+  S.cfg=keep;
+});
+
+renderMode();renderCase();
+}
+</script>
+</body>
+</html>
