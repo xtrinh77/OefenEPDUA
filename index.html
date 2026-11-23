@@ -204,12 +204,14 @@ pre{overflow-x:auto;background:var(--bg);border-radius:8px;padding:12px;font-siz
 <div class="ov" id="cfg" hidden role="dialog" aria-modal="true" aria-labelledby="cfgT">
   <div class="dlg">
     <h2 id="cfgT">Instellingen terminologieserver</h2>
-    <p class="sub" style="margin:0">Live zoeken gebruikt de Snowstorm-API. Op deze gedeelde pagina blokkeert de browser externe verbindingen. Live-modus werkt dus alleen als je dit HTML-bestand zelf host (lokaal, op intranet of op GitHub Pages).</p>
-    <label class="chk"><input type="checkbox" id="cLive"> Live zoeken in SNOMED CT (Belgische editie)</label>
+    <p class="sub" style="margin:0">Live zoeken spreekt een terminologieserver aan. Op een gedeelde Claude-pagina blokkeert de browser dat; host het bestand zelf (bv. GitHub Pages).</p>
+    <label class="chk"><input type="checkbox" id="cLive"> Live zoeken in SNOMED CT</label>
+    <label>Voorinstelling<select id="cPreset"></select></label>
+    <label>Type server<select id="cType"><option value="fhir">FHIR terminologieserver (ValueSet/$expand)</option><option value="snowstorm">Snowstorm browser-API</option></select></label>
     <label>Server-URL<input type="text" id="cServer"></label>
-    <label>Branch / editie<input type="text" id="cBranch"></label>
-    <label>Accept-Language (taalrefset)<input type="text" id="cLang"></label>
-    <label>Semantische tags (komma-gescheiden)<input type="text" id="cTags"></label>
+    <label id="lBranch">Editie<input type="text" id="cBranch"></label>
+    <label id="lLang">Taal<input type="text" id="cLang"></label>
+    <label id="lTags">Filter<input type="text" id="cTags"></label>
     <div class="msg" id="cMsg"></div>
     <div class="actions">
       <button class="btn pri" id="cSave">Opslaan</button>
@@ -434,8 +436,17 @@ const CASES=[
 
 /* ---------- Opslag ---------- */
 const KEY='oefen-epd-snomed-v1';
-let S={casus:'c1',lists:{},cfg:{live:false,server:'https://browser.ihtsdotools.org/snowstorm/snomed-ct',branch:'MAIN/SNOMEDCT-BE',lang:'nl-X-31000172101,nl,en',tags:'disorder,finding,situation'},filter:'actief'};
-try{const s=JSON.parse(localStorage.getItem(KEY));if(s)S={...S,...s,cfg:{...S.cfg,...(s.cfg||{})}}}catch(e){}
+const ECL='< 404684003 OR < 243796009';
+const PRESETS=[
+ {n:'FHIR · snomedbrowser.org (zoals de SNOMED-demo, Engels)',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'',lang:'',tags:ECL},
+ {n:'FHIR · snomedbrowser.org, Belgische editie, Nederlands',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'http://snomed.info/sct/11000172109',lang:'nl',tags:ECL},
+ {n:'FHIR · Ontoserver CSIRO (internationaal, Engels)',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:'',lang:'',tags:ECL},
+ {n:'Snowstorm · SNOMED International browser, Belgische editie',type:'snowstorm',server:'https://browser.ihtsdotools.org/snowstorm/snomed-ct',branch:'MAIN/SNOMEDCT-BE',lang:'nl-X-31000172101,nl,en',tags:'disorder,finding,situation'}];
+const LABELS={fhir:['Editie (leeg = standaard van de server)','displayLanguage (bv. nl, leeg = Engels)','ECL-filter (welke concepten)'],
+  snowstorm:['Branch','Accept-Language (taalrefset)','Semantische tags (komma-gescheiden)']};
+let S={casus:'c1',lists:{},cfg:{live:false,...PRESETS[1]},filter:'actief'};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s){const cfg=s.cfg&&s.cfg.type?{...S.cfg,...s.cfg}:{...S.cfg,live:!!(s.cfg&&s.cfg.live)};S={...S,...s,cfg}}}catch(e){}
+delete S.cfg.n;
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const list=()=>S.lists[S.casus]||(S.lists[S.casus]=[]);
 const curCase=()=>CASES.find(c=>c.id===S.casus)||CASES[0];
@@ -461,13 +472,33 @@ function offlineSearch(q){
   }
   return out.sort((a,b)=>b[0]-a[0]).slice(0,12).map(x=>x[1]);
 }
+const srcLabel=()=>{const c=S.cfg;let h='';try{h=new URL(c.server).hostname.replace(/^www\./,'')}catch(e){h='server'}
+  const be=/11000172109|SNOMEDCT-BE/.test(c.branch||'');return h+(be?' · BE':'')+(c.type==='fhir'&&c.lang?' · '+c.lang:'')};
 const tagFromFsn=f=>{const m=/\(([^)]+)\)\s*$/.exec(f||'');const k=m?m[1]:'';return {disorder:'aandoening',finding:'bevinding',situation:'situatie'}[k]||k||'concept'};
+async function httpErr(r){
+  let d='';try{const j=await r.json();d=j.issue?.[0]?.diagnostics||j.message||''}catch(e){}
+  return new Error('HTTP '+r.status+(d?': '+d.slice(0,160):''));
+}
+async function fhirSearch(q){
+  const c=S.cfg;const base=(c.branch||'http://snomed.info/sct').trim();
+  const vs=base+'?fhir_vs=ecl/'+(c.tags||ECL);
+  const url=`${c.server.replace(/\/$/,'')}/ValueSet/$expand?url=${encodeURIComponent(vs)}&filter=${encodeURIComponent(q)}&count=25&includeDesignations=true${c.lang?'&displayLanguage='+encodeURIComponent(c.lang):''}`;
+  const r=await fetch(url,{headers:{'Accept':'application/fhir+json'}});
+  if(!r.ok)throw await httpErr(r);
+  const j=await r.json();
+  return (j.expansion?.contains||[]).map(it=>{
+    const ds=it.designation||[];
+    const fsn=(ds.find(d=>d.use?.code==='900000000000003001'&&(!d.language||d.language.startsWith('en')))||ds.find(d=>d.use?.code==='900000000000003001'))?.value||'';
+    const syns=[...new Set(ds.filter(d=>d.use?.code!=='900000000000003001'&&d.value!==it.display).map(d=>d.value))].slice(0,6);
+    return{id:it.code,nl:it.display,fsn:fsn||it.display,tag:fsn?tagFromFsn(fsn):'concept',syns,live:true}});
+}
 async function liveSearch(q){
   const c=S.cfg;
+  if(c.type!=='snowstorm')return fhirSearch(q);
   const tags=c.tags.split(',').map(s=>s.trim()).filter(Boolean).map(t=>'&semanticTags='+encodeURIComponent(t)).join('');
   const url=`${c.server.replace(/\/$/,'')}/browser/${c.branch}/descriptions?term=${encodeURIComponent(q)}&active=true&conceptActive=true&groupByConcept=true&limit=25${tags}`;
   const r=await fetch(url,{headers:{'Accept-Language':c.lang,'Accept':'application/json'}});
-  if(!r.ok)throw new Error('HTTP '+r.status);
+  if(!r.ok)throw await httpErr(r);
   const j=await r.json();
   return (j.items||[]).map(it=>{const co=it.concept||{};const fsn=co.fsn?.term||'';const pt=co.pt?.term||it.term;
     return{id:co.conceptId,nl:pt,fsn,tag:tagFromFsn(fsn),syns:it.term&&it.term!==pt?[it.term]:[],live:true}});
@@ -487,7 +518,7 @@ function doSearch(){
   const n=++reqN;
   if(S.cfg.live){
     renderResults('Zoeken in SNOMED CT…');
-    liveSearch(q).then(r=>{if(n!==reqN)return;results=r;renderResults(r.length?`${r.length} resultaten uit ${S.cfg.branch}.`:'Geen resultaten in de live-editie.')})
+    liveSearch(q).then(r=>{if(n!==reqN)return;results=r;renderResults(r.length?`${r.length} resultaten van ${srcLabel()}.`:'Geen resultaten op de terminologieserver.')})
       .catch(e=>{if(n!==reqN)return;results=offlineSearch(q);renderResults(`Live zoeken lukt niet (${e.message||'verbinding geblokkeerd'}). Resultaten uit de offline catalogus.`)});
   }else{
     results=offlineSearch(q);
@@ -513,7 +544,7 @@ function showConcept(c){
   <dt>FSN</dt><dd>${esc(c.fsn)}</dd>
   <dt>Hiërarchie</dt><dd>${tagPill(c.tag)}</dd>
   ${c.syns&&c.syns.length?`<dt>Synoniemen</dt><dd>${esc(c.syns.join(', '))}</dd>`:''}
-  <dt>Bron</dt><dd>${c.live?'Live: '+esc(S.cfg.branch):'Offline catalogus (didactische term)'}</dd></dl>`;
+  <dt>Bron</dt><dd>${c.live?'Live: '+esc(srcLabel()):'Offline catalogus (didactische term)'}</dd></dl>`;
 }
 function openForm(d,isEdit){
   draft=d;editUid=isEdit?d.uid:null;
@@ -634,9 +665,16 @@ function renderCase(){
 $('casus').addEventListener('change',e=>{S.casus=e.target.value;save();renderCase()});
 
 /* ---------- Instellingen ---------- */
-function renderMode(){const m=$('mode');m.textContent=S.cfg.live?'Live: '+S.cfg.branch.split('/').pop():'Offline catalogus';m.classList.toggle('live',S.cfg.live)}
-function openCfg(){const c=S.cfg;$('cLive').checked=c.live;$('cServer').value=c.server;$('cBranch').value=c.branch;$('cLang').value=c.lang;$('cTags').value=c.tags;$('cMsg').textContent='';$('cfg').hidden=false;$('cLive').focus()}
-const readCfg=()=>({live:$('cLive').checked,server:$('cServer').value.trim(),branch:$('cBranch').value.trim(),lang:$('cLang').value.trim(),tags:$('cTags').value.trim()});
+function renderMode(){const m=$('mode');m.textContent=S.cfg.live?'Live: '+srcLabel():'Offline catalogus';m.classList.toggle('live',S.cfg.live)}
+$('cPreset').innerHTML='<option value="">Eigen instellingen</option>'+PRESETS.map((p,i)=>`<option value="${i}">${esc(p.n)}</option>`).join('');
+function setLabels(t){const L=LABELS[t]||LABELS.fhir;[['lBranch',0],['lLang',1],['lTags',2]].forEach(([id,i])=>{$(id).firstChild.textContent=L[i]})}
+function fillCfg(c){$('cType').value=c.type||'fhir';$('cServer').value=c.server||'';$('cBranch').value=c.branch||'';$('cLang').value=c.lang||'';$('cTags').value=c.tags||'';setLabels($('cType').value);
+  const i=PRESETS.findIndex(p=>p.type===c.type&&p.server===c.server&&p.branch===c.branch&&p.lang===c.lang&&p.tags===c.tags);$('cPreset').value=i>=0?String(i):''}
+function openCfg(){$('cLive').checked=S.cfg.live;fillCfg(S.cfg);$('cMsg').textContent='';$('cfg').hidden=false;$('cLive').focus()}
+$('cPreset').addEventListener('change',e=>{if(e.target.value!=='')fillCfg(PRESETS[+e.target.value])});
+$('cType').addEventListener('change',e=>{setLabels(e.target.value);$('cPreset').value=''});
+['cServer','cBranch','cLang','cTags'].forEach(id=>$(id).addEventListener('input',()=>{$('cPreset').value=''}));
+const readCfg=()=>({live:$('cLive').checked,type:$('cType').value,server:$('cServer').value.trim(),branch:$('cBranch').value.trim(),lang:$('cLang').value.trim(),tags:$('cTags').value.trim()});
 $('openCfg').addEventListener('click',openCfg);
 $('cClose').addEventListener('click',()=>{$('cfg').hidden=true});
 $('cfg').addEventListener('click',e=>{if(e.target===$('cfg'))$('cfg').hidden=true});
@@ -645,7 +683,9 @@ $('cSave').addEventListener('click',()=>{S.cfg=readCfg();save();renderMode();$('
 $('cTest').addEventListener('click',async()=>{
   const keep=S.cfg;S.cfg=readCfg();$('cMsg').textContent='Verbinding testen…';
   try{const r=await liveSearch('diabetes');$('cMsg').textContent=`Gelukt: ${r.length} resultaten. Eerste: ${r[0]?r[0].nl+' ('+r[0].id+')':'–'}`}
-  catch(e){$('cMsg').textContent=`Mislukt (${e.message||'geblokkeerd'}). Op een gedeelde Claude-pagina is dat normaal: host het bestand zelf. Krijg je een CORS-fout, dan staat de server geen aanvragen van jouw domein toe.`}
+  catch(e){const m=e.message||'geblokkeerd';$('cMsg').textContent=/^HTTP/.test(m)
+    ?`De server antwoordt, maar met een fout (${m}). Vaak is de editie of de taal niet beschikbaar op deze server: probeer een andere voorinstelling.`
+    :`Mislukt (${m}). De server is niet bereikbaar of laat geen aanvragen van dit domein toe (CORS). Op een gedeelde Claude-pagina is dat altijd zo. Probeer een andere voorinstelling.`}
   S.cfg=keep;
 });
 
