@@ -441,7 +441,8 @@ const BE='http://snomed.info/sct/11000172109';
 const PRESETS=[
  {n:'FHIR · Belgische Ontoserver (FOD Volksgezondheid), Nederlands',type:'fhir',server:'https://apps.health.belgium.be/ontoserver/fhir',branch:BE,lang:'nl',tags:ECL},
  {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands',type:'fhir',server:'https://tx.fhir.org/r4',branch:BE,lang:'nl',tags:'isa/404684003'},
- {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands (variant 2)',type:'fhir',server:'https://tx.fhir.org/r4',branch:'',lang:'nl',tags:'isa/404684003'},
+ {n:'FHIR · tx.fhir.org (HL7), Belgische editie, Nederlands (variant 3)',type:'fhir',server:'https://tx.fhir.org/r4',branch:'url:'+BE,lang:'nl',tags:'isa/404684003'},
+ {n:'FHIR · tx.fhir.org (HL7), internationaal + Nederlandse catalogustermen',type:'fhir',server:'https://tx.fhir.org/r4',branch:'',lang:'nl',tags:'isa/404684003'},
  {n:'FHIR · Ontoserver CSIRO, Engels + Nederlandse catalogustermen',type:'fhir',server:'https://r4.ontoserver.csiro.au/fhir',branch:'',lang:'',tags:ECL},
  {n:'FHIR · snomedbrowser.org (zoals de SNOMED-demo, Engels)',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'',lang:'',tags:ECL},
  {n:'FHIR · snomedbrowser.org, Belgische editie, Nederlands',type:'fhir',server:'https://snomedbrowser.org/fhir',branch:'http://snomed.info/sct/11000172109',lang:'nl',tags:ECL},
@@ -489,8 +490,10 @@ async function fhirSearch(q){
   /* "isa/…" of "refset/…": eenvoudige impliciete value set, editie via system-version (tx.fhir.org-stijl).
      Anders: ECL, editie in de URL (Ontoserver-stijl). */
   const simple=/^(isa|refset)\//.test(f);
-  const vs=simple?'http://snomed.info/sct?fhir_vs='+f:(ed||'http://snomed.info/sct')+'?fhir_vs=ecl/'+f;
-  const sv=simple&&ed?'&system-version='+encodeURIComponent('http://snomed.info/sct|'+ed):'';
+  /* editie beginnend met "url:" = editie in de value-set-URL zetten, ook bij isa/refset */
+  const inUrl=ed.startsWith('url:');const ed2=inUrl?ed.slice(4):ed;
+  const vs=simple?(inUrl?ed2:'http://snomed.info/sct')+'?fhir_vs='+f:(ed2||'http://snomed.info/sct')+'?fhir_vs=ecl/'+f;
+  const sv=simple&&ed2&&!inUrl?'&system-version='+encodeURIComponent('http://snomed.info/sct|'+ed2):'';
   const url=`${c.server.replace(/\/$/,'')}/ValueSet/$expand?url=${encodeURIComponent(vs)}${sv}&filter=${encodeURIComponent(q)}&count=25&includeDesignations=true${c.lang?'&displayLanguage='+encodeURIComponent(c.lang):''}`;
   const r=await fetch(url,{headers:{'Accept':'application/fhir+json'}});
   if(!r.ok)throw await httpErr(r);
@@ -499,7 +502,10 @@ async function fhirSearch(q){
     const ds=it.designation||[];
     const fsn=(ds.find(d=>d.use?.code==='900000000000003001'&&(!d.language||d.language.startsWith('en')))||ds.find(d=>d.use?.code==='900000000000003001'))?.value||'';
     const syns=[...new Set(ds.filter(d=>d.use?.code!=='900000000000003001'&&d.value!==it.display).map(d=>d.value))].slice(0,6);
-    const off=!c.lang&&BYID[it.code];
+    const want=(c.lang||'').toLowerCase().slice(0,2);
+    const nlD=want&&ds.find(d=>(d.language||'').toLowerCase().startsWith(want)&&d.use?.code!=='900000000000003001');
+    if(nlD)it.display=nlD.value;
+    const off=!nlD&&BYID[it.code];
     /* Engelstalige server: toon de Nederlandse term uit de catalogus als die er is */
     if(off)return{id:it.code,nl:off.nl,fsn:fsn||off.fsn,tag:fsn?tagFromFsn(fsn):off.tag,syns:[it.display,...off.syns].filter((x,i,a)=>x&&a.indexOf(x)===i).slice(0,6),live:true,mixed:true};
     return{id:it.code,nl:it.display,fsn:fsn||it.display,tag:fsn?tagFromFsn(fsn):'concept',syns,live:true}});
